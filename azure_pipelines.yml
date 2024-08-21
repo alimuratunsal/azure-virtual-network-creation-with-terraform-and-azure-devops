@@ -1,0 +1,47 @@
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+jobs:
+- job: InstallAzureCLI
+  steps:
+  - checkout: self
+
+  - script: |
+      curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+      az --version
+    displayName: 'Install Azure CLI'
+
+- job: InstallTerraform
+  steps:
+  - checkout: self
+
+  - script: |
+      curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+      sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+      sudo apt-get update && sudo apt-get install terraform
+    displayName: 'Install Terraform'
+
+- job: RunTerraform
+  dependsOn: [InstallAzureCLI, InstallTerraform]
+  steps:
+  - checkout: self
+
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '3.x'
+    displayName: 'Use Python 3.x'
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: 'terraform-service-connection-for-azure-devops'  # Service Connection name
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        terraform init
+        terraform plan -out=tfplan
+        terraform apply -auto-approve tfplan
+      workingDirectory: $(Build.SourcesDirectory)
+    displayName: 'Run Terraform'
